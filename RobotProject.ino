@@ -9,6 +9,8 @@ const byte rightMotorPin1 = A0;
 const byte rightMotorPin2 = A1;
 const byte rightMotorPin3 = A2;
 const byte rightMotorPin4 = A3;
+const byte ultrasonicTrigger = A4;
+const byte ultrasonicEcho = A5;
 
 const byte servoPin = 9;
 
@@ -36,6 +38,7 @@ void setup() {
   pinMode(leftMotorPin3, INPUT);
   pinMode(leftMotorPin4, INPUT);
   pinMode(leftMotorPin1, INPUT);
+  setPins(ultrasonicTrigger, ultrasonicEcho);
 
 }
 
