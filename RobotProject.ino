@@ -30,19 +30,25 @@ class Ultrasonic {
 };
 
 Ultrasonic ultrasonic;
+Motor leftMotor = {leftMotorPin1, leftMotorPin2, leftMotorPin3, leftMotorPin4, false, 1};
+Motor rightMotor = {rightMotorPin1, rightMotorPin2, rightMotorPin3, rightMotorPin4, true, 1}; 
 
 
 void setup() {
-  pinMode(leftMotorPin1, INPUT);
-  pinMode(leftMotorPin2, INPUT);
-  pinMode(leftMotorPin3, INPUT);
-  pinMode(leftMotorPin4, INPUT);
-  pinMode(leftMotorPin1, INPUT);
-  setPins(ultrasonicTrigger, ultrasonicEcho);
+  pinMode(leftMotorPin1, OUTPUT);
+  pinMode(leftMotorPin2, OUTPUT);
+  pinMode(leftMotorPin3, OUTPUT);
+  pinMode(leftMotorPin4, OUTPUT);
+  pinMode(rightMotorPin1, OUTPUT);
+  pinMode(rightMotorPin2, OUTPUT);
+  pinMode(rightMotorPin3, OUTPUT);
+  pinMode(rightMotorPin4, OUTPUT);
+  ultrasonic.setPins(ultrasonicTrigger, ultrasonicEcho);
 
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  leftMotor.forward(2000, 1);
+  rightMotor.forward(2000, 1);
 
 }
