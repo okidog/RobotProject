@@ -1,6 +1,6 @@
 #include <IRremote.h>
 #include <Servo.h>
-#include <Motor.h>
+#include "Motor.h"
 
 // ----------------------- Pin Definitions -----------------------
 const byte ultrasonicTrigger = A4;
@@ -89,7 +89,7 @@ RobotState currentState = STATE_FORWARD;
 unsigned long stateStartTime = 0;
 
 // Thresholds
-const int WALL_DISTANCE = 25; 
+const int WALL_DISTANCE = 10; 
 const int SCAN_TIME     = 300;
 const int TURN_TIME     = 500;
 
@@ -223,6 +223,7 @@ void loop() {
   if (moving) {
     leftMotor.runSpeedToPosition();
     rightMotor.runSpeedToPosition();
+
     if (leftMotor.distanceToGo() <= 0) {
       Serial.print("reset triggd");
       Serial.print('\n');
@@ -234,6 +235,7 @@ void loop() {
       rightMotor.setSpeed(speed);
     }
     stepCount++;
+
     if (stepCount >= 10000) {
 
       dist = ultrasonic.getDistanceCM();
@@ -242,10 +244,10 @@ void loop() {
       Serial.print(dist);
       Serial.println(" cm");
 
-      /*if (dist < WALL_DISTANCE) {
+      if (dist < WALL_DISTANCE) {
         changeState(STATE_SCAN);
         moving = false;
-      } */
+      }
       
       stepCount = 0;
     }
