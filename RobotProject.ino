@@ -1,27 +1,16 @@
-#include <Motor.h>
 #include <IRremote.h>
+#include <Servo.h>
 
 // ----------------------- Pin Definitions -----------------------
-const byte leftMotorPin1 = 4;
-const byte leftMotorPin2 = 5;
-const byte leftMotorPin3 = 6;
-const byte leftMotorPin4 = 7;
-
-const byte rightMotorPin1 = A0;
-const byte rightMotorPin2 = A1;
-const byte rightMotorPin3 = A2;
-const byte rightMotorPin4 = A3;
-
 const byte ultrasonicTrigger = A4;
 const byte ultrasonicEcho    = A5;
 
-const byte servoPin = 9;
-
+const byte servoPin       = 9;
 const byte IR_RECEIVE_PIN = 3;
 
 // ----------------------- Ultrasonic Class -----------------------
 class Ultrasonic {
-  private: 
+  private:
     uint8_t trigPin = A4;
     uint8_t echoPin = A5;
 
@@ -34,28 +23,40 @@ class Ultrasonic {
     }
 
     long readCM() {
-      // Trigger pulse
       digitalWrite(trigPin, LOW);
       delayMicroseconds(2);
       digitalWrite(trigPin, HIGH);
       delayMicroseconds(10);
       digitalWrite(trigPin, LOW);
 
-      // Read echo time
-      long duration = pulseIn(echoPin, HIGH, 30000); // timeout 30ms
+      long duration = pulseIn(echoPin, HIGH, 30000); 
+      if (duration == 0) return 400;
 
-      if (duration == 0) return 400; 
-
-      // Convert time to cm
       return duration * 0.0343 / 2;
     }
 
     int getDistanceCM() {
-      return readCM();
+      return (int)readCM();
     }
 };
 
 Ultrasonic ultrasonic;
+
+// ----------------------- Servo -----------------------
+Servo scannerServo;
+const int SERVO_CENTER = 90;
+const int SERVO_LEFT   = 160;   // wide scan
+const int SERVO_RIGHT  = 20;
+
+// ----------------------- IR Remote -----------------------
+IRrecv irReceiver(IR_RECEIVE_PIN);
+decode_results results;
+
+// Button codes
+const unsigned long IR_UP    = 0xFF629D;
+const unsigned long IR_DOWN  = 0xFFA857;
+const unsigned long IR_LEFT  = 0xFF22DD;
+const unsigned long IR_RIGHT = 0xFFC23D;
 
 // ----------------------- State Machine -----------------------
 enum RobotState {
@@ -65,14 +66,16 @@ enum RobotState {
 };
 
 RobotState currentState = STATE_FORWARD;
-
 unsigned long stateStartTime = 0;
 
 // Thresholds
-const int WALL_DISTANCE = 25;  // cm
-const int SCAN_TIME = 300;     // ms
-const int TURN_TIME = 500;     // ms
+const int WALL_DISTANCE = 25; 
+const int SCAN_TIME     = 300;
+const int TURN_TIME     = 500;
 
+int turnDirection = 1; // +1 = left, -1 = right
+
+// ----------------------- State Helpers -----------------------
 void changeState(RobotState newState) {
   currentState = newState;
   stateStartTime = millis();
@@ -84,23 +87,49 @@ void changeState(RobotState newState) {
   }
 }
 
-// ----------------------- IR Remote Setup -----------------------
-IRrecv irReceiver(IR_RECEIVE_PIN);
-decode_results results;
+void performScanAndChooseTurn() {
+  Serial.println("SCANNING LEFT/RIGHT...");
+
+  // LEFT
+  scannerServo.write(SERVO_LEFT);
+  delay(300);
+  int leftDist = ultrasonic.getDistanceCM();
+  Serial.print("Left: ");
+  Serial.print(leftDist);
+  Serial.println(" cm");
+
+  // RIGHT
+  scannerServo.write(SERVO_RIGHT);
+  delay(300);
+  int rightDist = ultrasonic.getDistanceCM();
+  Serial.print("Right: ");
+  Serial.print(rightDist);
+  Serial.println(" cm");
+
+  // CENTER
+  scannerServo.write(SERVO_CENTER);
+  delay(200);
+
+  // Choose turn direction
+  if (leftDist > rightDist) {
+    turnDirection = 1;
+    Serial.println("Decision: TURN LEFT");
+  } else {
+    turnDirection = -1;
+    Serial.println("Decision: TURN RIGHT");
+  }
+}
 
 // ----------------------- Setup -----------------------
 void setup() {
   Serial.begin(9600);
 
-  // Motor pins (still unused for now)
-  pinMode(leftMotorPin1, INPUT);
-  pinMode(leftMotorPin2, INPUT);
-  pinMode(leftMotorPin3, INPUT);
-  pinMode(leftMotorPin4, INPUT);
-
   ultrasonic.setPins(ultrasonicTrigger, ultrasonicEcho);
 
-  irReceiver.enableIRIn();  // start IR receiver
+  scannerServo.attach(servoPin);
+  scannerServo.write(SERVO_CENTER);
+
+  irReceiver.enableIRIn();
 
   changeState(STATE_FORWARD);
 }
@@ -108,42 +137,25 @@ void setup() {
 // ----------------------- Loop -----------------------
 void loop() {
 
-  // ---------------- IR REMOTE ----------------
+  // ---------- IR REMOTE ----------
   if (irReceiver.decode(&results)) {
     unsigned long code = results.value;
 
     Serial.print("IR Code: 0x");
     Serial.println(code, HEX);
 
-    switch (code) {
-      case 0xFF629D:  // UP
-        Serial.println("IR COMMAND: FORWARD");
-        break;
+    if (code == IR_UP)    Serial.println("IR: UP (nudge fwd placeholder)");
+    if (code == IR_DOWN)  Serial.println("IR: DOWN (nudge back placeholder)");
+    if (code == IR_LEFT)  Serial.println("IR: LEFT (nudge left placeholder)");
+    if (code == IR_RIGHT) Serial.println("IR: RIGHT (nudge right placeholder)");
 
-      case 0xFFA857:  // DOWN
-        Serial.println("IR COMMAND: BACKWARD");
-        break;
-
-      case 0xFF22DD:  // LEFT
-        Serial.println("IR COMMAND: LEFT");
-        break;
-
-      case 0xFFC23D:  // RIGHT
-        Serial.println("IR COMMAND: RIGHT");
-        break;
-
-      default:
-        Serial.println("UNKNOWN IR BUTTON");
-        break;
-    }
-
-    irReceiver.resume(); // Ready for next IR value
+    irReceiver.resume();
   }
 
-  // ---------------- STATE MACHINE ----------------
+  // ---------- STATE MACHINE ----------
   int dist = ultrasonic.getDistanceCM();
 
-  Serial.print("Distance: ");
+  Serial.print("Front Distance: ");
   Serial.print(dist);
   Serial.println(" cm");
 
@@ -153,21 +165,26 @@ void loop() {
       if (dist < WALL_DISTANCE) {
         changeState(STATE_SCAN);
       }
-      // (later: motors go forward)
       break;
 
     case STATE_SCAN:
-      // (later: add servo scanning logic)
-      if (millis() - stateStartTime > SCAN_TIME) {
-        changeState(STATE_TURN);
-      }
+      performScanAndChooseTurn();
+      changeState(STATE_TURN);
       break;
 
     case STATE_TURN:
-      // (later: motors rotate robot left or right)
-      if (millis() - stateStartTime > TURN_TIME) {
-        changeState(STATE_FORWARD);
-      }
+      // No motors yet — just simulate with serial
+      if (turnDirection > 0)
+        Serial.println("Turning LEFT...");
+      else
+        Serial.println("Turning RIGHT...");
+
+      // simulate turn timing
+      delay(TURN_TIME);
+
+      changeState(STATE_FORWARD);
       break;
   }
+
+  delay(50);
 }
