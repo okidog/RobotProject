@@ -8,6 +8,7 @@ const byte ultrasonicEcho    = A5;
 const byte servoPin       = 9;
 const byte IR_RECEIVE_PIN = 3;
 
+int speed = 500;
 // ----------------------- Ultrasonic Class -----------------------
 class Ultrasonic {
   private:
@@ -62,7 +63,8 @@ const unsigned long IR_RIGHT = 0xFFC23D;
 enum RobotState {
   STATE_FORWARD,
   STATE_SCAN,
-  STATE_TURN
+  STATE_TURN_LEFT,
+  STATE_TURN_RIGHT
 };
 
 RobotState currentState = STATE_FORWARD;
@@ -72,6 +74,12 @@ unsigned long stateStartTime = 0;
 const int WALL_DISTANCE = 25; 
 const int SCAN_TIME     = 300;
 const int TURN_TIME     = 500;
+bool moving = false;
+
+// for now
+const int WALL_DISTANCE = -1;  // cm 
+const int SCAN_TIME = 300;     // ms
+const int TURN_TIME = 500;     // ms
 
 int turnDirection = 1; // +1 = left, -1 = right
 
@@ -81,9 +89,10 @@ void changeState(RobotState newState) {
   stateStartTime = millis();
 
   switch (newState) {
-    case STATE_FORWARD: Serial.println("STATE: FORWARD"); break;
-    case STATE_SCAN:    Serial.println("STATE: SCAN");    break;
-    case STATE_TURN:    Serial.println("STATE: TURN");    break;
+    case STATE_FORWARD:     Serial.println("STATE: FORWARD");     break;
+    case STATE_SCAN:        Serial.println("STATE: SCAN");        break;
+    case STATE_TURN_LEFT:   Serial.println("STATE: TURN LEFT");   break;
+    case STATE_TURN_RIGHT:  Serial.println("STATE: TURN RIGHT");  break;
   }
 }
 
@@ -132,6 +141,11 @@ void setup() {
   irReceiver.enableIRIn();
 
   changeState(STATE_FORWARD);
+  leftMotor.moveTo(5000);
+  rightMotor.moveTo(-5000);
+
+  leftMotor.setSpeed(speed);
+  rightMotor.setSpeed(speed);
 }
 
 // ----------------------- Loop -----------------------
@@ -187,4 +201,56 @@ void loop() {
   }
 
   delay(50);
+  if (!moving) {
+    switch (currentState) {
+
+      case STATE_FORWARD:
+        if (dist < WALL_DISTANCE) {
+          changeState(STATE_SCAN);
+        }
+        leftMotor.forward(speed);
+        rightMotor.forward(speed);
+        moving = true;
+        break;
+
+      case STATE_SCAN:
+        if (millis() - stateStartTime > SCAN_TIME) {
+          changeState(STATE_TURN_LEFT);
+        }
+        moving = false;
+        break;
+
+      case STATE_TURN_LEFT:
+        if (millis() - stateStartTime > TURN_TIME) {
+          changeState(STATE_FORWARD);
+        }
+        leftMotor.reverse(speed);
+        rightMotor.forward(speed);
+        moving = true;
+        break;
+
+      case STATE_TURN_RIGHT:
+        if (millis() - stateStartTime > TURN_TIME) {
+          changeState(STATE_FORWARD);
+        }
+        leftMotor.forward(speed);
+        rightMotor.reverse(speed);
+        moving = true;
+        break;
+    }
+  }
+
+  if (moving) {
+    leftMotor.runSpeedToPosition();
+    rightMotor.runSpeedToPosition();
+    if (leftMotor.distanceToGo() <= 0) {
+      Serial.print("reset triggd");
+      leftMotor.setCurrentPosition(0);
+      rightMotor.setCurrentPosition(0);
+      leftMotor.moveTo(4076);
+      rightMotor.moveTo(-4076);
+      leftMotor.setSpeed(speed);
+      rightMotor.setSpeed(speed);
+    }
+  }
 }
