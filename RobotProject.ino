@@ -20,6 +20,8 @@ const byte servoPin = 9;
 const byte IR_RECEIVE_PIN = 3;
 
 // ----------------------- Ultrasonic Class -----------------------
+int speed = 2000;
+
 class Ultrasonic {
   private: 
     uint8_t trigPin = A4;
@@ -40,6 +42,8 @@ class Ultrasonic {
 };
 
 Ultrasonic ultrasonic;
+Motor leftMotor = {leftMotorPin1, leftMotorPin2, leftMotorPin3, leftMotorPin4, false, 2.f};
+Motor rightMotor = {rightMotorPin1, rightMotorPin2, rightMotorPin3, rightMotorPin4, true, 2.f}; 
 
 // ----------------------- State Machine -----------------------
 enum RobotState {
@@ -87,6 +91,10 @@ void setup() {
   irReceiver.enableIRIn();  // Start IR receiver
 
   changeState(STATE_FORWARD);
+  ultrasonic.setPins(ultrasonicTrigger, ultrasonicEcho);
+
+  leftMotor.forward(speed);
+  rightMotor.forward(speed);
 }
 
 // ----------------------- Loop -----------------------
@@ -147,4 +155,10 @@ void loop() {
       }
       break;
   }
+  leftMotor.runSpeedToPosition();
+  rightMotor.runSpeedToPosition();
+  Serial.print(leftMotor.distanceToGo());
+  Serial.print('\n');
+  Serial.print(rightMotor.distanceToGo());
+  Serial.print('\n');
 }
