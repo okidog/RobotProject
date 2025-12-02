@@ -19,7 +19,11 @@ const byte rightMotorPin4 = A3;
 const byte servoPin       = 9;
 const byte IR_RECEIVE_PIN = 3;
 
-int speed = 500;
+int stepCount = 0;
+int dist = 0;
+int acceleration = 9;
+
+int speed = 600;
 // ----------------------- Ultrasonic Class -----------------------
 class Ultrasonic {
   private:
@@ -154,6 +158,9 @@ void setup() {
 
   leftMotor.setSpeed(speed);
   rightMotor.setSpeed(speed);
+
+  leftMotor.setAcceleration(acceleration);
+  rightMotor.setAcceleration(acceleration);
 }
 
 // ----------------------- Loop -----------------------
@@ -175,11 +182,6 @@ void loop() {
   }
 
   // ---------- STATE MACHINE ----------
-  int dist = ultrasonic.getDistanceCM();
-
-  Serial.print("Front Distance: ");
-  Serial.print(dist);
-  Serial.println(" cm");
 
   if (!moving) {
     switch (currentState) {
@@ -223,12 +225,29 @@ void loop() {
     rightMotor.runSpeedToPosition();
     if (leftMotor.distanceToGo() <= 0) {
       Serial.print("reset triggd");
+      Serial.print('\n');
       leftMotor.setCurrentPosition(0);
       rightMotor.setCurrentPosition(0);
       leftMotor.moveTo(4076);
       rightMotor.moveTo(-4076);
       leftMotor.setSpeed(speed);
       rightMotor.setSpeed(speed);
+    }
+    stepCount++;
+    if (stepCount >= 10000) {
+
+      dist = ultrasonic.getDistanceCM();
+
+      Serial.print("Front Distance: ");
+      Serial.print(dist);
+      Serial.println(" cm");
+
+      /*if (dist < WALL_DISTANCE) {
+        changeState(STATE_SCAN);
+        moving = false;
+      } */
+      
+      stepCount = 0;
     }
   }
 }
