@@ -19,8 +19,8 @@ const byte servoPin = 9;
 
 const byte IR_RECEIVE_PIN = 3;
 
-// ----------------------- Ultrasonic Class -----------------------
 int speed = 2000;
+// ----------------------- Ultrasonic Class -----------------------
 
 class Ultrasonic {
   private: 
@@ -33,6 +33,7 @@ class Ultrasonic {
       echoPin = newEchoPin;
       pinMode(trigPin, OUTPUT);
       pinMode(echoPin, INPUT);
+  Serial.print('\n');
     }
 
     // placeholder for now
@@ -79,12 +80,6 @@ decode_results results;
 
 void setup() {
   Serial.begin(9600);
-
-  // Motor pins (keep as INPUT for now since motors aren't used)
-  pinMode(leftMotorPin1, INPUT);
-  pinMode(leftMotorPin2, INPUT);
-  pinMode(leftMotorPin3, INPUT);
-  pinMode(leftMotorPin4, INPUT);
 
   ultrasonic.setPins(ultrasonicTrigger, ultrasonicEcho);
 
