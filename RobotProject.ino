@@ -16,6 +16,8 @@ const byte servoPin = 9;
 
 const byte IR_RECIEVE_PIN = 3;
 
+int speed = 2000;
+
 class Ultrasonic {
   private: 
   	uint8_t trigPin = A4;
@@ -30,25 +32,24 @@ class Ultrasonic {
 };
 
 Ultrasonic ultrasonic;
-Motor leftMotor = {leftMotorPin1, leftMotorPin2, leftMotorPin3, leftMotorPin4, false, 1};
-Motor rightMotor = {rightMotorPin1, rightMotorPin2, rightMotorPin3, rightMotorPin4, true, 1}; 
+Motor leftMotor = {leftMotorPin1, leftMotorPin2, leftMotorPin3, leftMotorPin4, false, 2.f};
+Motor rightMotor = {rightMotorPin1, rightMotorPin2, rightMotorPin3, rightMotorPin4, true, 2.f}; 
 
 
 void setup() {
-  pinMode(leftMotorPin1, OUTPUT);
-  pinMode(leftMotorPin2, OUTPUT);
-  pinMode(leftMotorPin3, OUTPUT);
-  pinMode(leftMotorPin4, OUTPUT);
-  pinMode(rightMotorPin1, OUTPUT);
-  pinMode(rightMotorPin2, OUTPUT);
-  pinMode(rightMotorPin3, OUTPUT);
-  pinMode(rightMotorPin4, OUTPUT);
+  Serial.begin(9600);
+
   ultrasonic.setPins(ultrasonicTrigger, ultrasonicEcho);
 
+  leftMotor.forward(speed);
+  rightMotor.forward(speed);
 }
 
 void loop() {
-  leftMotor.forward(2000, 1);
-  rightMotor.forward(2000, 1);
-
+  leftMotor.runSpeedToPosition();
+  rightMotor.runSpeedToPosition();
+  Serial.print(leftMotor.distanceToGo());
+  Serial.print('\n');
+  Serial.print(rightMotor.distanceToGo());
+  Serial.print('\n');
 }
