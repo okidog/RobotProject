@@ -1,9 +1,20 @@
 #include <IRremote.h>
 #include <Servo.h>
+#include <Motor.h>
 
 // ----------------------- Pin Definitions -----------------------
 const byte ultrasonicTrigger = A4;
 const byte ultrasonicEcho    = A5;
+
+const byte leftMotorPin1 = 4;
+const byte leftMotorPin2 = 5;
+const byte leftMotorPin3 = 6;
+const byte leftMotorPin4 = 7;
+
+const byte rightMotorPin1 = A0;
+const byte rightMotorPin2 = A1;
+const byte rightMotorPin3 = A2;
+const byte rightMotorPin4 = A3;
 
 const byte servoPin       = 9;
 const byte IR_RECEIVE_PIN = 3;
@@ -43,6 +54,9 @@ class Ultrasonic {
 
 Ultrasonic ultrasonic;
 
+Motor leftMotor = {leftMotorPin1, leftMotorPin2, leftMotorPin3, leftMotorPin4, false, 2.f};
+Motor rightMotor = {rightMotorPin1, rightMotorPin2, rightMotorPin3, rightMotorPin4, true, 2.f};
+
 // ----------------------- Servo -----------------------
 Servo scannerServo;
 const int SERVO_CENTER = 90;
@@ -74,12 +88,8 @@ unsigned long stateStartTime = 0;
 const int WALL_DISTANCE = 25; 
 const int SCAN_TIME     = 300;
 const int TURN_TIME     = 500;
-bool moving = false;
 
-// for now
-const int WALL_DISTANCE = -1;  // cm 
-const int SCAN_TIME = 300;     // ms
-const int TURN_TIME = 500;     // ms
+bool moving = false;
 
 int turnDirection = 1; // +1 = left, -1 = right
 
@@ -141,8 +151,6 @@ void setup() {
   irReceiver.enableIRIn();
 
   changeState(STATE_FORWARD);
-  leftMotor.moveTo(5000);
-  rightMotor.moveTo(-5000);
 
   leftMotor.setSpeed(speed);
   rightMotor.setSpeed(speed);
@@ -173,34 +181,6 @@ void loop() {
   Serial.print(dist);
   Serial.println(" cm");
 
-  switch (currentState) {
-
-    case STATE_FORWARD:
-      if (dist < WALL_DISTANCE) {
-        changeState(STATE_SCAN);
-      }
-      break;
-
-    case STATE_SCAN:
-      performScanAndChooseTurn();
-      changeState(STATE_TURN);
-      break;
-
-    case STATE_TURN:
-      // No motors yet — just simulate with serial
-      if (turnDirection > 0)
-        Serial.println("Turning LEFT...");
-      else
-        Serial.println("Turning RIGHT...");
-
-      // simulate turn timing
-      delay(TURN_TIME);
-
-      changeState(STATE_FORWARD);
-      break;
-  }
-
-  delay(50);
   if (!moving) {
     switch (currentState) {
 
@@ -214,10 +194,8 @@ void loop() {
         break;
 
       case STATE_SCAN:
-        if (millis() - stateStartTime > SCAN_TIME) {
-          changeState(STATE_TURN_LEFT);
-        }
-        moving = false;
+        performScanAndChooseTurn();
+        changeState(STATE_TURN_LEFT);
         break;
 
       case STATE_TURN_LEFT:
