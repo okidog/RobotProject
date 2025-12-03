@@ -136,7 +136,7 @@ void performScanAndChooseTurn() {
   delay(400);
 
   // Choose turn direction
-  if (leftDist < WALL_DISTANCE && rightDist < WALL_DISTANCE) {
+  if (leftDist == rightDist) {
     Serial.println("I haven't accounted for this yet dear god help us.");
   } else 
     if (leftDist > rightDist) {
