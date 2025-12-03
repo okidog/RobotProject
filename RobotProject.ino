@@ -6,15 +6,15 @@
 const byte ultrasonicTrigger = A4;
 const byte ultrasonicEcho    = A5;
 
-const byte leftMotorPin1 = 4;
-const byte leftMotorPin2 = 5;
-const byte leftMotorPin3 = 6;
-const byte leftMotorPin4 = 7;
+const uint8_t leftMotorPin1 = 4;
+const uint8_t leftMotorPin2 = 5;
+const uint8_t leftMotorPin3 = 6;
+const uint8_t leftMotorPin4 = 7;
 
-const byte rightMotorPin1 = A0;
-const byte rightMotorPin2 = A1;
-const byte rightMotorPin3 = A2;
-const byte rightMotorPin4 = A3;
+const uint8_t rightMotorPin1 = A0;
+const uint8_t rightMotorPin2 = A1;
+const uint8_t rightMotorPin3 = A2;
+const uint8_t rightMotorPin4 = A3;
 
 const byte servoPin       = 9;
 const byte IR_RECEIVE_PIN = 3;
@@ -22,6 +22,8 @@ const byte IR_RECEIVE_PIN = 3;
 int stepCount = 0;
 int dist = 0;
 int acceleration = 9;
+const int stepSize = 2000;
+const int turnLoopSize = 30000;
 
 int speed = 600;
 // ----------------------- Ultrasonic Class -----------------------
@@ -134,13 +136,43 @@ void performScanAndChooseTurn() {
   delay(200);
 
   // Choose turn direction
-  if (leftDist > rightDist) {
-    turnDirection = 1;
-    Serial.println("Decision: TURN LEFT");
-  } else {
-    turnDirection = -1;
-    Serial.println("Decision: TURN RIGHT");
+  if (leftDist < WALL_DISTANCE && rightDist < WALL_DISTANCE) {
+    Serial.println("I haven't accounted for this yet dear god help us.");
+  } else 
+    if (leftDist > rightDist) {
+      Serial.println("Decision: TURN LEFT");
+      changeState(STATE_TURN_LEFT);
+      moving = false;
+    } else {
+      Serial.println("Decision: TURN RIGHT");
+      changeState(STATE_TURN_RIGHT);
+      moving = false;
+    }
+}
+
+void setMotorTargets() {
+  leftMotor.setCurrentPosition(0);
+  rightMotor.setCurrentPosition(0);
+
+  switch (currentState) {
+    case STATE_TURN_LEFT:
+      leftMotor.moveTo(-stepSize);
+      rightMotor.moveTo(stepSize);
+      Serial.println("LEFT TARGETS INITD");
+      break;
+    case STATE_TURN_RIGHT:
+      leftMotor.moveTo(-stepSize);
+      rightMotor.moveTo(-stepSize);
+      Serial.println("RIGHT TARGETS INITD");
+      break;
+    default:
+      leftMotor.moveTo(stepSize);
+      rightMotor.moveTo(-stepSize);
+      Serial.println("FORWARD TARGETS INITD");
+      break;
   }
+  leftMotor.setSpeed(speed);
+  rightMotor.setSpeed(speed);
 }
 
 // ----------------------- Setup -----------------------
@@ -156,11 +188,11 @@ void setup() {
 
   changeState(STATE_FORWARD);
 
-  leftMotor.setSpeed(speed);
+  /*leftMotor.setSpeed(speed);
   rightMotor.setSpeed(speed);
 
   leftMotor.setAcceleration(acceleration);
-  rightMotor.setAcceleration(acceleration);
+  rightMotor.setAcceleration(acceleration); */
 }
 
 // ----------------------- Loop -----------------------
@@ -187,35 +219,47 @@ void loop() {
     switch (currentState) {
 
       case STATE_FORWARD:
-        if (dist < WALL_DISTANCE) {
-          changeState(STATE_SCAN);
-        }
-        leftMotor.forward(speed);
-        rightMotor.forward(speed);
         moving = true;
         break;
 
       case STATE_SCAN:
         performScanAndChooseTurn();
-        changeState(STATE_TURN_LEFT);
+        moving = false;
         break;
 
       case STATE_TURN_LEFT:
-        if (millis() - stateStartTime > TURN_TIME) {
-          changeState(STATE_FORWARD);
+        Serial.println("turn left state reached");
+        Serial.println(turnLoopSize);
+        setMotorTargets();
+        for (int i = 0; i < turnLoopSize; i++) {
+          leftMotor.runSpeedToPosition();
+          rightMotor.runSpeedToPosition();
+
+          if (abs(leftMotor.distanceToGo()) <= 0) {
+            Serial.println("reset triggd");
+            setMotorTargets();
+          }
         }
-        leftMotor.reverse(speed);
-        rightMotor.forward(speed);
         moving = true;
+        Serial.println("turn left state exiting ... ");
+        changeState(STATE_FORWARD);
         break;
 
       case STATE_TURN_RIGHT:
-        if (millis() - stateStartTime > TURN_TIME) {
-          changeState(STATE_FORWARD);
+        Serial.println("turn right state reached");
+        setMotorTargets();
+        for (int i = 0; i < turnLoopSize; i++) {
+          leftMotor.runSpeedToPosition();
+          rightMotor.runSpeedToPosition();
+
+          if (abs(leftMotor.distanceToGo()) <= 0) {
+            Serial.println("reset triggd");
+            setMotorTargets();
+          }
         }
-        leftMotor.forward(speed);
-        rightMotor.reverse(speed);
         moving = true;
+        Serial.println("turn left state exiting ... ");
+        changeState(STATE_FORWARD);
         break;
     }
   }
@@ -224,17 +268,11 @@ void loop() {
     leftMotor.runSpeedToPosition();
     rightMotor.runSpeedToPosition();
 
-    if (leftMotor.distanceToGo() <= 0) {
-      Serial.print("reset triggd");
-      Serial.print('\n');
-      leftMotor.setCurrentPosition(0);
-      rightMotor.setCurrentPosition(0);
-      leftMotor.moveTo(4076);
-      rightMotor.moveTo(-4076);
-      leftMotor.setSpeed(speed);
-      rightMotor.setSpeed(speed);
-    }
-    stepCount++;
+    if (abs(leftMotor.distanceToGo()) <= 0) {
+      Serial.println("reset triggd");
+      setMotorTargets();
+    } 
+    stepCount++; 
 
     if (stepCount >= 10000) {
 
