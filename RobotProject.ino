@@ -26,6 +26,7 @@ const int stepSize = 2000;
 const long int turnLoopSize = 30000;
 
 int speed = 600;
+
 // ----------------------- Ultrasonic Class -----------------------
 class Ultrasonic {
   private:
@@ -60,7 +61,7 @@ class Ultrasonic {
 
 Ultrasonic ultrasonic;
 
-Motor leftMotor = {leftMotorPin1, leftMotorPin2, leftMotorPin3, leftMotorPin4, false, 2.f};
+Motor leftMotor  = {leftMotorPin1, leftMotorPin2, leftMotorPin3, leftMotorPin4, false, 2.f};
 Motor rightMotor = {rightMotorPin1, rightMotorPin2, rightMotorPin3, rightMotorPin4, true, 2.f};
 
 // ----------------------- Servo -----------------------
@@ -73,7 +74,7 @@ const int SERVO_RIGHT  = 0;
 IRrecv irReceiver(IR_RECEIVE_PIN);
 decode_results results;
 
-// Button codes
+// Button codes (your known ones)
 const unsigned long IR_UP    = 0xFF629D;
 const unsigned long IR_DOWN  = 0xFFA857;
 const unsigned long IR_LEFT  = 0xFF22DD;
@@ -96,19 +97,25 @@ const int SCAN_TIME     = 300;
 const int TURN_TIME     = 500;
 
 bool moving = false;
-
 int turnDirection = 1; // +1 = left, -1 = right
 
-// ----------------------- State Helpers -----------------------
+// ----------------------- IR RC-style control flags -----------------------
+const unsigned long IR_DEADBAND = 300;  // stop motors after release
+const unsigned long IR_RETURN   = 600;  // return to auto after release
+
+unsigned long lastIRtime = 0;
+bool manualActive = false;
+
+// ----------------------- Helpers -----------------------
 void changeState(RobotState newState) {
   currentState = newState;
   stateStartTime = millis();
 
   switch (newState) {
-    case STATE_FORWARD:     Serial.println("STATE: FORWARD");     break;
-    case STATE_SCAN:        Serial.println("STATE: SCAN");        break;
-    case STATE_TURN_LEFT:   Serial.println("STATE: TURN LEFT");   break;
-    case STATE_TURN_RIGHT:  Serial.println("STATE: TURN RIGHT");  break;
+    case STATE_FORWARD:   Serial.println("STATE: FORWARD");   break;
+    case STATE_SCAN:      Serial.println("STATE: SCAN");      break;
+    case STATE_TURN_LEFT: Serial.println("STATE: TURN LEFT"); break;
+    case STATE_TURN_RIGHT:Serial.println("STATE: TURN RIGHT");break;
   }
 }
 
@@ -138,16 +145,15 @@ void performScanAndChooseTurn() {
   // Choose turn direction
   if (leftDist < WALL_DISTANCE && rightDist < WALL_DISTANCE) {
     Serial.println("I haven't accounted for this yet dear god help us.");
-  } else 
-    if (leftDist > rightDist) {
-      Serial.println("Decision: TURN LEFT");
-      changeState(STATE_TURN_LEFT);
-      moving = false;
-    } else {
-      Serial.println("Decision: TURN RIGHT");
-      changeState(STATE_TURN_RIGHT);
-      moving = false;
-    }
+  } else if (leftDist > rightDist) {
+    Serial.println("Decision: TURN LEFT");
+    changeState(STATE_TURN_LEFT);
+    moving = false;
+  } else {
+    Serial.println("Decision: TURN RIGHT");
+    changeState(STATE_TURN_RIGHT);
+    moving = false;
+  }
 }
 
 void setMotorTargets() {
@@ -175,6 +181,69 @@ void setMotorTargets() {
   rightMotor.setSpeed(speed);
 }
 
+// ----------------------- IR PRESS-AND-HOLD HANDLER -----------------------
+void handleIR() {
+  if (irReceiver.decode(&results)) {
+    unsigned long code = results.value;
+
+    Serial.print("IR Code: 0x");
+    Serial.println(code, HEX);
+
+    // Only treat our 4 buttons as manual control
+    if (code == IR_UP || code == IR_DOWN || code == IR_LEFT || code == IR_RIGHT) {
+      manualActive = true;
+      lastIRtime = millis();
+
+      // RC-style: every press/hold nudges motion in that direction
+      leftMotor.setCurrentPosition(0);
+      rightMotor.setCurrentPosition(0);
+
+      if (code == IR_UP) {
+        // forward
+        leftMotor.move(stepSize);
+        rightMotor.move(-stepSize);
+      } else if (code == IR_DOWN) {
+        // backward
+        leftMotor.move(-stepSize);
+        rightMotor.move(stepSize);
+      } else if (code == IR_LEFT) {
+        // spin left
+        leftMotor.move(-stepSize);
+        rightMotor.move(-stepSize);
+      } else if (code == IR_RIGHT) {
+        // spin right
+        leftMotor.move(stepSize);
+        rightMotor.move(stepSize);
+      }
+
+      leftMotor.setSpeed(speed);
+      rightMotor.setSpeed(speed);
+      moving = true;
+    }
+
+    irReceiver.resume();
+  }
+
+  if (manualActive) {
+    unsigned long elapsed = millis() - lastIRtime;
+
+    // After short gap with no new IR: stop motors, but stay in manual mode
+    if (elapsed > IR_DEADBAND && elapsed <= IR_RETURN) {
+      leftMotor.stop();
+      rightMotor.stop();
+      moving = false;
+    }
+
+    // After longer gap: return to auto mode
+    if (elapsed > IR_RETURN) {
+      manualActive = false;
+      Serial.println("IR idle → back to AUTO");
+      changeState(STATE_FORWARD);
+      moving = false; // let auto state machine re-arm
+    }
+  }
+}
+
 // ----------------------- Setup -----------------------
 void setup() {
   Serial.begin(9600);
@@ -187,34 +256,24 @@ void setup() {
   irReceiver.enableIRIn();
 
   changeState(STATE_FORWARD);
-
-  /*leftMotor.setSpeed(speed);
-  rightMotor.setSpeed(speed);
-
-  leftMotor.setAcceleration(acceleration);
-  rightMotor.setAcceleration(acceleration); */
 }
 
 // ----------------------- Loop -----------------------
 void loop() {
 
-  // ---------- IR REMOTE ----------
-  if (irReceiver.decode(&results)) {
-    unsigned long code = results.value;
+  // ---------- IR PRESS-AND-HOLD CONTROL ----------
+  handleIR();
 
-    Serial.print("IR Code: 0x");
-    Serial.println(code, HEX);
-
-    if (code == IR_UP)    Serial.println("IR: UP (nudge fwd placeholder)");
-    if (code == IR_DOWN)  Serial.println("IR: DOWN (nudge back placeholder)");
-    if (code == IR_LEFT)  Serial.println("IR: LEFT (nudge left placeholder)");
-    if (code == IR_RIGHT) Serial.println("IR: RIGHT (nudge right placeholder)");
-
-    irReceiver.resume();
+  // If we're manually overriding, just drive like RC and skip auto logic
+  if (manualActive) {
+    if (moving) {
+      leftMotor.runSpeedToPosition();
+      rightMotor.runSpeedToPosition();
+    }
+    return;  // don't run auto navigation while in manual
   }
 
-  // ---------- STATE MACHINE ----------
-
+  // ---------- STATE MACHINE (AUTONOMOUS) ----------
   if (!moving) {
     switch (currentState) {
 
@@ -267,6 +326,7 @@ void loop() {
     }
   }
 
+  // ---------- MOTOR EXECUTION (AUTONOMOUS) ----------
   if (moving) {
     leftMotor.runSpeedToPosition();
     rightMotor.runSpeedToPosition();
@@ -275,10 +335,10 @@ void loop() {
       Serial.println("reset triggd");
       setMotorTargets();
     } 
+
     stepCount++; 
 
     if (stepCount >= 10000) {
-
       dist = ultrasonic.getDistanceCM();
 
       Serial.print("Front Distance: ");
