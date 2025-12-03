@@ -23,7 +23,7 @@ int stepCount = 0;
 int dist = 0;
 int acceleration = 9;
 const int stepSize = 2000;
-const int turnLoopSize = 30000;
+const long int turnLoopSize = 30000;
 
 int speed = 600;
 // ----------------------- Ultrasonic Class -----------------------
@@ -65,9 +65,9 @@ Motor rightMotor = {rightMotorPin1, rightMotorPin2, rightMotorPin3, rightMotorPi
 
 // ----------------------- Servo -----------------------
 Servo scannerServo;
-const int SERVO_CENTER = 90;
-const int SERVO_LEFT   = 160;   // wide scan
-const int SERVO_RIGHT  = 20;
+const int SERVO_CENTER = 97;
+const int SERVO_LEFT   = 180;   // wide scan
+const int SERVO_RIGHT  = 0;
 
 // ----------------------- IR Remote -----------------------
 IRrecv irReceiver(IR_RECEIVE_PIN);
@@ -91,7 +91,7 @@ RobotState currentState = STATE_FORWARD;
 unsigned long stateStartTime = 0;
 
 // Thresholds
-const int WALL_DISTANCE = 10; 
+const int WALL_DISTANCE = 15; 
 const int SCAN_TIME     = 300;
 const int TURN_TIME     = 500;
 
@@ -117,7 +117,7 @@ void performScanAndChooseTurn() {
 
   // LEFT
   scannerServo.write(SERVO_LEFT);
-  delay(300);
+  delay(1000);
   int leftDist = ultrasonic.getDistanceCM();
   Serial.print("Left: ");
   Serial.print(leftDist);
@@ -125,7 +125,7 @@ void performScanAndChooseTurn() {
 
   // RIGHT
   scannerServo.write(SERVO_RIGHT);
-  delay(300);
+  delay(1000);
   int rightDist = ultrasonic.getDistanceCM();
   Serial.print("Right: ");
   Serial.print(rightDist);
@@ -133,7 +133,7 @@ void performScanAndChooseTurn() {
 
   // CENTER
   scannerServo.write(SERVO_CENTER);
-  delay(200);
+  delay(400);
 
   // Choose turn direction
   if (leftDist < WALL_DISTANCE && rightDist < WALL_DISTANCE) {
@@ -157,12 +157,12 @@ void setMotorTargets() {
   switch (currentState) {
     case STATE_TURN_LEFT:
       leftMotor.moveTo(-stepSize);
-      rightMotor.moveTo(stepSize);
+      rightMotor.moveTo(-stepSize);
       Serial.println("LEFT TARGETS INITD");
       break;
     case STATE_TURN_RIGHT:
-      leftMotor.moveTo(-stepSize);
-      rightMotor.moveTo(-stepSize);
+      leftMotor.moveTo(stepSize);
+      rightMotor.moveTo(stepSize);
       Serial.println("RIGHT TARGETS INITD");
       break;
     default:
@@ -223,6 +223,7 @@ void loop() {
         break;
 
       case STATE_SCAN:
+        delay(1000);
         performScanAndChooseTurn();
         moving = false;
         break;
@@ -231,7 +232,7 @@ void loop() {
         Serial.println("turn left state reached");
         Serial.println(turnLoopSize);
         setMotorTargets();
-        for (int i = 0; i < turnLoopSize; i++) {
+        for (long int i = 0; i < turnLoopSize; i++) {
           leftMotor.runSpeedToPosition();
           rightMotor.runSpeedToPosition();
 
@@ -243,12 +244,13 @@ void loop() {
         moving = true;
         Serial.println("turn left state exiting ... ");
         changeState(STATE_FORWARD);
+        setMotorTargets();
         break;
 
       case STATE_TURN_RIGHT:
         Serial.println("turn right state reached");
         setMotorTargets();
-        for (int i = 0; i < turnLoopSize; i++) {
+        for (long int i = 0; i < turnLoopSize; i++) {
           leftMotor.runSpeedToPosition();
           rightMotor.runSpeedToPosition();
 
@@ -258,8 +260,9 @@ void loop() {
           }
         }
         moving = true;
-        Serial.println("turn left state exiting ... ");
+        Serial.println("turn right state exiting ... ");
         changeState(STATE_FORWARD);
+        setMotorTargets();
         break;
     }
   }
